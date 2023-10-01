@@ -6,6 +6,7 @@ import win32gui
 import win32api
 import keyboard
 import time
+import pydirectinput as pdi
 
 # Model without specifying classes
 model = torch.hub.load("ultralytics/yolov5", "yolov5s")
@@ -39,15 +40,12 @@ while True:
         # Get the annotated image with bounding boxes
         annotated_image = results.render()[0]
 
-        # Iterate through detections
+        # Draw filtered bounding boxes
         for detection in results.pred[0]:
-            class_index = int(detection[5])
-            class_confidence = detection[4]
-
-            # Check if it's a "person" detection and above confidence threshold
-            if class_index == 0 and class_confidence >= confidence_threshold:
-                x1, y1, x2, y2, _, _ = detection
-
+            x1, y1, x2, y2, confidence, class_index = detection
+            if class_index == 0 and confidence >= confidence_threshold:
+                cv.rectangle(annotated_image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)  # Green rectangle
+                
                 # Calculate the center of the detected person
                 center_x = int((x1 + x2) / 2)
                 center_y = int((y1 + y2) / 2)
@@ -56,26 +54,22 @@ while True:
                 screen_x = bounding_box['left'] + center_x
                 screen_y = bounding_box['top'] + center_y
 
-                # Move the mouse to the center of the detected person using win32api
-                if keyboard.is_pressed('ctrl'):
-                    win32api.SetCursorPos((screen_x, screen_y))
-    else:
-        # The active window is not the target window, you can add code here for other actions or sleep
-        time.sleep(1)  # Sleep for 1 second, for example
+                # Define the number of steps for smoother movement
+                steps = 3
+                scale_factor = 1.7
 
+                # Calculate the delta for each step
+                delta_x = int((screen_x - win32api.GetCursorPos()[0]) / steps)
+                delta_y = int((screen_y - win32api.GetCursorPos()[1]) / steps)
 
-            
-            
-            
-    # Draw filtered bounding boxes
-    for detection in results.pred[0]:
-        x1, y1, x2, y2, confidence, class_index = detection
-        if class_index == 0 and confidence >= confidence_threshold:
-            cv.rectangle(annotated_image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)  # Green rectangle
-    
-    # Display the annotated image
-    cv.imshow('Screenshot', annotated_image)
-    
+                # Perform smooth mouse movement
+                for step in range(steps):
+                    pdi.moveTo(win32api.GetCursorPos()[0] + delta_x, win32api.GetCursorPos()[1] + delta_y)
+                    time.sleep(0.01)  # Adjust the sleep duration for smoother movement
+
+        # Display the annotated image
+        cv.imshow('Screenshot', annotated_image)
+
     if (cv.waitKey(1) & 0xFF) == ord('q'):
         cv.destroyAllWindows()
         break
